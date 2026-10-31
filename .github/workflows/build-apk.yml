@@ -1,0 +1,73 @@
+name: build-apk
+
+on:
+  push:
+    branches: [android]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "build-tools;35.0.0 ndk;28.2.13676358"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .local/ci-target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Set up Gradle 8.14
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          CARGO_TARGET_DIR: .local/ci-target
+          CARGO_BUILD_JOBS: "2"
+        run: |
+          GRADLE_BIN="$(which gradle)"
+          python3 tools/android_build.py \
+            --abi arm64-v8a \
+            --public \
+            --release-candidate \
+            --sdk "$ANDROID_HOME" \
+            --java-home "$JAVA_HOME" \
+            --gradle "$GRADLE_BIN"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon-apk-arm64-v8a
+          path: .local/android/apk/arm64-v8a/*.apk
+          retention-days: 14
