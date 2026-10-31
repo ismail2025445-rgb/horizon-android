@@ -35,6 +35,9 @@ jobs:
         with:
           targets: aarch64-linux-android
 
+      - name: Add Android target to pinned toolchain
+        run: rustup target add aarch64-linux-android --toolchain 1.95.0
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
